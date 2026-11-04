@@ -683,12 +683,13 @@ if st.button("submit quiz & analyze",type="primary"):
                 "explanaition"
               )
             )
+
 # -------------------------------
 # PERFORMANCE HISTORY
 # -------------------------------
 
 st.divider()
-st.header("📈 Performance History")
+st.header("📊 Performance History")
 
 history_file = "performance_history.csv"
 
@@ -719,60 +720,61 @@ if os.path.exists(history_file):
 
         else:
             st.info("No history available for this subject yet.")
-        
-    st.divider()
-    st.header("🧠 Weak Topic Detection")
 
-    topic_history = subject_history[
-        ~subject_history["topic"].astype(str).str.lower().isin(
-            ["all topics", "nan", ""]
-        )
-    ]
+        st.divider()
+        st.header("🧠 Weak Topic Detection")
 
-    if not topic_history.empty:
+        topic_history = subject_history[
+            ~subject_history["topic"].astype(str).str.lower().isin(
+                ["all topics", "nan", ""]
+            )
+        ]
 
-        topic_summary = topic_history.groupby(
-            "topic",
-            as_index=False
-        ).agg({
-            "correct": "sum",
-            "total": "sum"
-        })
+        if not topic_history.empty:
 
-        topic_summary["accuracy"] = (
-            topic_summary["correct"] /
-            topic_summary["total"] * 100
-        )
+            topic_summary = topic_history.groupby(
+                "topic",
+                as_index=False
+            ).agg({
+                "correct": "sum",
+                "total": "sum"
+            })
 
-        for _, row in topic_summary.iterrows():
-
-            st.subheader(row["topic"].title())
-
-            accuracy = row["accuracy"]
-
-            st.progress(float(accuracy) / 100)
-
-            st.write(
-                f"Accuracy: {accuracy:.1f}%"
+            topic_summary["accuracy"] = (
+                topic_summary["correct"] /
+                topic_summary["total"] * 100
             )
 
-            if accuracy < 50:
-                st.error("Weak topic - Needs revision")
+            for _, row in topic_summary.iterrows():
 
-            elif accuracy < 75:
-                st.warning("Needs more practice")
+                st.subheader(row["topic"].title())
 
-            else:
-                st.success("Strong topic - Excellent work!")
+                accuracy = row["accuracy"]
+
+                st.progress(float(accuracy) / 100)
+
+                st.write(
+                    f"Accuracy: {accuracy:.1f}%"
+                )
+
+                if accuracy < 50:
+                    st.error("Weak topic - Needs revision")
+
+                elif accuracy < 75:
+                    st.warning("Needs more practice")
+
+                else:
+                    st.success("Strong topic - Excellent work!")
 
         else:
-          st.info(
-            "Complete topic-specific quizzes "
-            "to identify your weak areas."
-        )
+            st.info(
+                "Complete topic-specific quizzes "
+                "to identify your weak areas."
+            )
 
-   else:
+    else:
         st.info("Complete a quiz to see your history.")
 
 else:
     st.info("Your quiz history will appear here after your first completed quiz.")
+
