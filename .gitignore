@@ -1,0 +1,11 @@
+.streamlit/
+__pycache__/
+*.pyc
+*.csv
+*.save
+*.save.*
+app_backup*.py
+app_before_*.py
+main.pyy
+list_models.py
+test_gemini.py

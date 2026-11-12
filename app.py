@@ -1,6 +1,9 @@
+from google import genai
+from supabase import create_client
 import streamlit as st
 import pandas as pd
 import os
+import json
 from datetime import datetime 
 
 st.set_page_config(
@@ -8,6 +11,113 @@ st.set_page_config(
    page_icon="🧠",
    layout="wide"
 )
+
+# -------------------------------
+# -------------------------------
+# GEMINI AI QUESTION GENERATOR
+# -------------------------------
+
+def generate_gemini_questions(subject, topic, difficulty):
+
+    client = genai.Client(
+        api_key=st.secrets["GEMINI_API_KEY"]
+    )
+
+    prompt = f"""
+You are the question generator for StudySense AI.
+
+Generate exactly 10 original Class 12 CBSE-level MCQ questions.
+
+Subject: {subject}
+Topic: {topic}
+Difficulty: {difficulty}
+
+Requirements:
+- Every question must match the selected subject and topic.
+- Each question must have exactly four distinct options.
+- Only one option must be correct.
+- Provide a clear explanation.
+- Questions must be scientifically and mathematically accurate.
+- Do not repeat questions.
+- Return ONLY valid JSON.
+
+Use this exact JSON structure:
+
+{{
+  "questions": [
+    {{
+      "subject": "{subject}",
+      "topic": "{topic}",
+      "question": "Question text",
+      "options": ["A", "B", "C", "D"],
+      "difficulty": "{difficulty}",
+      "answer": "Correct option text",
+      "explanaition": "Explanation"
+    }}
+  ]
+}}
+"""
+
+    response = None
+    last_error = None
+
+    for model_name in [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite"
+    ]:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            break
+
+        except Exception as e:
+            last_error = e
+
+    if response is None:
+        raise last_error
+
+    data = json.loads(response.text)
+    generated = data["questions"]
+
+    if len(generated) != 10:
+        raise ValueError("Gemini did not generate exactly 10 questions.")
+
+    for q in generated:
+        required = [
+            "subject", "topic", "question",
+            "options", "difficulty", "answer",
+            "explanaition"
+        ]
+
+        if not all(key in q for key in required):
+            raise ValueError("A question is missing required fields.")
+
+        if len(q["options"]) != 4:
+            raise ValueError("A question must have four options.")
+
+        if len(set(q["options"])) != 4:
+            raise ValueError("Question options must be distinct.")
+
+        if q["answer"] not in q["options"]:
+            raise ValueError("Correct answer is not among the options.")
+
+        if q["subject"].lower() != subject.lower():
+            raise ValueError("Generated subject does not match.")
+
+        if q["difficulty"].lower() != difficulty.lower():
+            raise ValueError("Generated difficulty does not match.")
+
+        if not isinstance(q["question"], str) or not q["question"].strip():
+            raise ValueError("Invalid question text.")
+
+        if not isinstance(q["explanaition"], str) or not q["explanaition"].strip():
+            raise ValueError("Invalid explanation.")
+
+    return generated
+
 
 st.markdown("""
 <style>
@@ -92,6 +202,97 @@ footer{
 </style>
 """,unsafe_allow_html=True)
 
+
+# -------------------------------
+# SUPABASE AUTHENTICATION
+# -------------------------------
+
+if "supabase" not in st.session_state:
+    st.session_state.supabase = create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
+    )
+
+supabase = st.session_state.supabase
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if st.session_state.user is None:
+
+    st.title("🧠 StudySense AI")
+    st.subheader("Welcome! Please log in or register.")
+
+    login_tab, signup_tab = st.tabs(["Login", "Register"])
+
+    with login_tab:
+        with st.form("login_form"):
+            email = st.text_input("Email")
+            password = st.text_input(
+                "Password",
+                type="password"
+            )
+            login = st.form_submit_button("Login")
+
+            if login:
+                try:
+                    response = supabase.auth.sign_in_with_password({
+                        "email": email,
+                        "password": password
+                    })
+
+                    st.session_state.user = response.user
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"Login failed: {e}")
+
+    with signup_tab:
+        with st.form("signup_form"):
+            new_email = st.text_input("Email address")
+            new_password = st.text_input(
+                "Create password",
+                type="password"
+            )
+            signup = st.form_submit_button("Create account")
+
+
+            if signup:
+                try:
+                    response = supabase.auth.sign_up({
+                        "email": new_email,
+                        "password": new_password
+                    })
+
+                    if response.session:
+                        st.session_state.user = response.user
+                        st.success("Account created!")
+                        st.rerun()
+
+                    else:
+                        st.success(
+                            "Account created! Please verify your email, "
+                            "then log in."
+                        )
+
+                except Exception as e:
+                    st.error(f"Registration failed: {e}")
+
+
+    st.stop()
+
+# -------------------------------
+# LOGGED-IN STUDENT
+# -------------------------------
+
+st.sidebar.success("Logged in")
+
+if st.sidebar.button("Logout"):
+    supabase.auth.sign_out()
+    st.session_state.user = None
+    st.rerun()
+
+
 st.title("🧠 Studysense AI")
 st.subheader("Learn smarter.Discover your potential.")
 st.markdown(
@@ -114,7 +315,7 @@ topic=st.text_input(
 
 difficulty=st.selectbox(
    "Select Difficulty",
-   ["Easy"]
+   ["Easy","medium","hard"]
 )
 
 st.write(
@@ -442,59 +643,62 @@ def generate_mathematics_question(question_type):
 # GENERATE QUESTIONS
 # -------------------------------
 
-if "generated_questions" not in st.session_state:
+# -------------------------------
+# GEMINI QUIZ GENERATION
+# -------------------------------
 
-    generated_questions = []
+current_quiz_signature = (
+    subject.strip().lower(),
+    topic.strip().lower(),
+    difficulty.strip().lower()
+)
 
-    # Generate 10 Physics questions
-    for i in range(10):
-        generated_questions.append(
-            generate_physics_question()
-        )
+if "active_questions" not in st.session_state:
+    st.session_state.active_questions = []
 
-    # Generate 10 Chemistry questions
-    for i in range(10):
-        question_type = random.randint(0, 4)
+if "active_quiz_signature" not in st.session_state:
+    st.session_state.active_quiz_signature = None
 
-        generated_questions.append(
-            generate_chemistry_question(question_type)
-        )
+if "quiz_version" not in st.session_state:
+    st.session_state.quiz_version = 0
 
-    # Generate 10 Mathematics questions
-    for i in range(10):
-        question_type = random.randint(0, 4)
+if st.button("✨ Generate Quiz", type="primary"):
 
-        generated_questions.append(
-            generate_mathematics_question(question_type)
-        )
+    if not topic.strip():
+        st.warning("Please enter a topic first.")
 
-    st.session_state.generated_questions = generated_questions
+    else:
+        try:
+            with st.spinner("Gemini is preparing your quiz..."):
 
-questions.extend(st.session_state.generated_questions)
+                new_questions = generate_gemini_questions(
+                    subject,
+                    topic,
+                    difficulty
+                )
 
+            st.session_state.active_questions = new_questions
+            st.session_state.active_quiz_signature = current_quiz_signature
+            st.session_state.quiz_version += 1
 
-filtered_questions=[]
+            st.success("Your 10-question quiz is ready!")
 
-for q in questions:
-   subject_match=(
-     q["subject"].strip().lower()
-     ==subject.strip().lower()
-   )
+        except Exception as e:
+            st.session_state.active_questions = []
+            st.session_state.active_quiz_signature = None
 
-   topic_match=(
-     not topic.strip()
-     or topic.strip().lower()in q["topic"].strip().lower()
-   )
+            st.error("Quiz generation failed. Please try again.")
+            st.caption(f"Technical detail: {e}")
 
-   difficulty_match=(
-      q["difficulty"].strip().lower()
-      ==difficulty.strip().lower()
-   )
+filtered_questions = []
 
-   if subject_match and topic_match and difficulty_match:
-      filtered_questions.append(q)
+if st.session_state.active_quiz_signature == current_quiz_signature:
+    filtered_questions = st.session_state.active_questions
 
-st.header("📝 take your quiz")
+st.header("📝 Take Your Quiz")
+
+if not filtered_questions:
+    st.info("Select your subject, topic and difficulty, then click Generate Quiz.")
 
 answers={}
 
@@ -554,8 +758,11 @@ if st.button("submit quiz & analyze",type="primary"):
             if answers.get(i) == q["answer"]:
                 topic_scores[topic_name]["correct"] += 1
 
-        new_result = pd.DataFrame([
+                user_id = st.session_state.user.id
+
+        new_results = [
             {
+                "user_id": user_id,
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "subject": subject,
                 "topic": topic_name,
@@ -566,20 +773,17 @@ if st.button("submit quiz & analyze",type="primary"):
                 )
             }
             for topic_name, scores in topic_scores.items()
-        ])
+        ]
 
-        if os.path.exists(history_file):
-            new_result.to_csv(
-                history_file,
-                mode="a",
-                header=False,
-                index=False
-            )
-        else:
-            new_result.to_csv(
-                history_file,
-                index=False
-            )
+        try:
+            supabase.table("performance_history").insert(
+                new_results
+            ).execute()
+
+            st.success("Performance saved successfully!")
+
+        except Exception as e:
+            st.error(f"Could not save performance: {e}")
 
 
         # -------------------------------
@@ -684,6 +888,7 @@ if st.button("submit quiz & analyze",type="primary"):
               )
             )
 
+
 # -------------------------------
 # PERFORMANCE HISTORY
 # -------------------------------
@@ -691,11 +896,16 @@ if st.button("submit quiz & analyze",type="primary"):
 st.divider()
 st.header("📊 Performance History")
 
-history_file = "performance_history.csv"
+try:
+    user_id = st.session_state.user.id
 
-if os.path.exists(history_file):
+    response = supabase.table("performance_history") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .order("date", desc=True) \
+        .execute()
 
-    history = pd.read_csv(history_file)
+    history = pd.DataFrame(response.data)
 
     if not history.empty:
 
@@ -713,13 +923,13 @@ if os.path.exists(history_file):
         ]
 
         if not subject_history.empty:
-
             st.line_chart(
                 subject_history["percentage"]
             )
-
         else:
-            st.info("No history available for this subject yet.")
+            st.info(
+                "No history available for this subject yet."
+            )
 
         st.divider()
         st.header("🧠 Weak Topic Detection")
@@ -764,7 +974,9 @@ if os.path.exists(history_file):
                     st.warning("Needs more practice")
 
                 else:
-                    st.success("Strong topic - Excellent work!")
+                    st.success(
+                        "Strong topic - Excellent work!"
+                    )
 
         else:
             st.info(
@@ -773,8 +985,10 @@ if os.path.exists(history_file):
             )
 
     else:
-        st.info("Complete a quiz to see your history.")
+        st.info(
+            "Complete a quiz to see your history."
+        )
 
-else:
-    st.info("Your quiz history will appear here after your first completed quiz.")
+except Exception as e:
+    st.error(f"Could not load performance history: {e}")
 
