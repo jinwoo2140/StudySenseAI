@@ -129,6 +129,8 @@ def generate_gemini_questions(subject, topic, difficulty):
 
 st.markdown("""
 
+
+
 <style>
 
 
@@ -303,6 +305,106 @@ footer {
         font-size: 16px !important;
     }
 }
+
+/* Force dark backgrounds across the app */
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"] {
+    background: linear-gradient(
+        135deg,
+        #0b1020 0%,
+        #11172b 50%,
+        #17132e 100%
+    ) !important;
+}
+
+/* Dark backgrounds for forms and content containers */
+[data-testid="stForm"],
+[data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"] {
+    background-color: transparent !important;
+}
+
+/* Darken quiz and weak-topic sections */
+[data-testid="stExpander"],
+[data-testid="stMetric"],
+.stAlert {
+    background-color: #171f35 !important;
+    color: #f8fafc !important;
+}
+
+
+/* ===== LOGIN AND FORM BUTTONS ===== */
+
+.stFormSubmitButton > button,
+[data-testid="stFormSubmitButton"] button {
+    background: linear-gradient(
+        90deg, #6d5ae6, #8b5cf6
+    ) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+
+/* ===== FORM TEXT AND LABELS ===== */
+
+[data-testid="stForm"] label,
+[data-testid="stForm"] p,
+[data-testid="stForm"] span {
+    color: #e2e8f0 !important;
+}
+
+/* ===== SECTION HEADINGS ===== */
+
+.stMarkdown h1,
+.stMarkdown h2,
+.stMarkdown h3,
+.stMarkdown h4 {
+    color: #f8fafc !important;
+}
+
+/* ===== QUIZ AND WEAK TOPIC TEXT ===== */
+
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li {
+    color: #e2e8f0 !important;
+}
+
+/* ===== METRICS ===== */
+
+[data-testid="stMetric"] label,
+[data-testid="stMetricValue"],
+[data-testid="stMetricDelta"] {
+    color: #f8fafc !important;
+}
+
+/* ===== STREAMLIT ALERTS ===== */
+
+[data-testid="stAlert"] {
+    background-color: #171f35 !important;
+    border: 1px solid #465477 !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] div {
+    color: #e2e8f0 !important;
+}
+
+/* ===== EXPANDERS ===== */
+
+[data-testid="stExpander"] {
+    background-color: #171f35 !important;
+    border: 1px solid #35415f !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stExpander"] summary {
+    color: #f8fafc !important;
+}
+
 
 </style>
 
