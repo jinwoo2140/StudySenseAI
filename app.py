@@ -13,196 +13,300 @@ st.set_page_config(
 )
 
 # -------------------------------
-# -------------------------------
 # GEMINI AI QUESTION GENERATOR
 # -------------------------------
 
-def generate_gemini_questions(subject, topic, difficulty):
 
-    client = genai.Client(
+# -------------------------------
+# GEMINI CLIENT (REUSED)
+# -------------------------------
+
+@st.cache_resource
+def get_gemini_client():
+    return genai.Client(
         api_key=st.secrets["GEMINI_API_KEY"]
     )
 
+
+def generate_gemini_questions(subject, topic, difficulty):
+    client = get_gemini_client()
+
     prompt = f"""
-You are the question generator for StudySense AI.
+    Generate exactly 10 multiple-choice questions for Class 12 CBSE.
 
-Generate exactly 10 original Class 12 CBSE-level MCQ questions.
+    Subject: {subject}
+    Topic: {topic}
+    Difficulty: {difficulty}
 
-Subject: {subject}
-Topic: {topic}
-Difficulty: {difficulty}
-
-Requirements:
-- Every question must match the selected subject and topic.
-- Each question must have exactly four distinct options.
-- Only one option must be correct.
-- Provide a clear explanation.
-- Questions must be scientifically and mathematically accurate.
-- Do not repeat questions.
-- Return ONLY valid JSON.
-
-Use this exact JSON structure:
-
-{{
-  "questions": [
+    Return ONLY valid JSON in this exact structure:
     {{
-      "subject": "{subject}",
-      "topic": "{topic}",
-      "question": "Question text",
-      "options": ["A", "B", "C", "D"],
-      "difficulty": "{difficulty}",
-      "answer": "Correct option text",
-      "explanaition": "Explanation"
-    }}
-  ]
-}}
-"""
+        "questions": [
+            {{
+                "question": "Question text",
+                "topic": "{topic}",
+                "options": ["A", "B", "C", "D"],
+                "answer": "Correct option",
+                "explanaition": "Explanation"
+            }}
+     ]
 
-    response = None
+    }}
+
+    Make sure all questions are accurate and relevant.
+    """
+
+    models = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash"
+    ]
+
     last_error = None
 
-    for model_name in [
-        "gemini-3.8-flash",
-        "gemini-3.5-flash",
-        "gemini-3.5-flash-lite"
-    ]:
+    for model in models:
         try:
             response = client.models.generate_content(
-                model=model_name,
-                contents=prompt
+                model=model,
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "temperature": 0.4,
+                    "max_output_tokens": 4096
+                }
             )
-            break
+
+            data = json.loads(response.text)
+            generated = data["questions"]
+
+            if len(generated) != 10:
+                raise ValueError("Gemini did not generate exactly 10 questions.")
+
+            required_keys = {
+                "question", "options", "answer", "explanaition","topic"
+            }
+
+            for q in generated:
+                if not required_keys.issubset(q):
+                    raise ValueError("A question is missing required fields.")
+
+                if not isinstance(q["options"], list) or len(q["options"]) != 4:
+                    raise ValueError("A question must have exactly 4 options.")
+
+                if len(set(q["options"])) != 4:
+                    raise ValueError("Question options must be distinct.")
+
+                if q["answer"] not in q["options"]:
+                    raise ValueError("Correct answer is not among the options.")
+
+                if not q["question"] or not q["explanaition"]:
+                    raise ValueError("Question or explanation is empty.")
+
+            return generated
 
         except Exception as e:
             last_error = e
 
-    if response is None:
-        raise last_error
+            error_text = str(e).lower()
 
-    data = json.loads(response.text)
-    generated = data["questions"]
+            temporary_error = (
+                "503" in error_text
+                or "unavailable" in error_text
+                or "high demand" in error_text
+                or "overloaded" in error_text
+            )
 
-    if len(generated) != 10:
-        raise ValueError("Gemini did not generate exactly 10 questions.")
+            if temporary_error:
+                continue
 
-    for q in generated:
-        required = [
-            "subject", "topic", "question",
-            "options", "difficulty", "answer",
-            "explanaition"
-        ]
+            raise
 
-        if not all(key in q for key in required):
-            raise ValueError("A question is missing required fields.")
+    raise RuntimeError(
+        "All Gemini models are temporarily unavailable. "
+        "Please try again shortly."
+    ) from last_error
 
-        if len(q["options"]) != 4:
-            raise ValueError("A question must have four options.")
 
-        if len(set(q["options"])) != 4:
-            raise ValueError("Question options must be distinct.")
-
-        if q["answer"] not in q["options"]:
-            raise ValueError("Correct answer is not among the options.")
-
-        if q["subject"].lower() != subject.lower():
-            raise ValueError("Generated subject does not match.")
-
-        if q["difficulty"].lower() != difficulty.lower():
-            raise ValueError("Generated difficulty does not match.")
-
-        if not isinstance(q["question"], str) or not q["question"].strip():
-            raise ValueError("Invalid question text.")
-
-        if not isinstance(q["explanaition"], str) or not q["explanaition"].strip():
-            raise ValueError("Invalid explanation.")
-
-    return generated
 
 
 st.markdown("""
+
 <style>
-/*Main application background*/
+
+
 .stApp {
-   background:linear-gradient(
-     135deg,#0b1020 0%,#11172b 55%,#17132e 100%
-   );
-   color:#f1f5f9;
+    background: linear-gradient(
+        135deg,
+        #0b1020 0%,
+        #11172b 55%,
+        #17132e 100%
+    ) !important;
+    color: #f1f5f9 !important;
 }
 
-/*Main content width and spacing */
+/* Remove default Streamlit header background */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
+.stApp > header {
+    background: transparent !important;
+}
+
+/* Main content */
 .block-container {
-   max-width: 1100px;
-   padding-top:2.5rem;
-   padding-bottom:3rem;
+    max-width: 1100px;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
 }
 
-/*Heading*/
-h1,h2,h3{
-   color:#f8fafc !important;
-   letter-spacing:-0.5px;
+/* ===== HEADINGS ===== */
+
+h1, h2, h3 {
+    color: #f8fafc !important;
+    letter-spacing: -0.5px;
 }
 
-/*Select boxes and text inputs*/
-.stSelectbox div[data-baseweb="select"]>div,
-.stTextInput input{
-   background-color:#171f35;
-   color:#f8fafc;
-   border:1px solid#35415f;
-   border-radius:10px;
+/* ===== LABELS AND TEXT ===== */
+
+.stSelectbox label,
+.stTextInput label,
+.stTextArea label,
+.stRadio label,
+.stCheckbox label,
+.stMarkdown,
+p,
+span {
+    color: #e2e8f0;
 }
 
-/*Button*/
-.stButton>button{
-   background:linear-gradient(90deg,#6d5ae6,#8b5cf6);
-   color:white;
-   border:none;
-   border-radius:10px;
-   padding:0.65rem 1.3rem;
-   font-weight:600;
-   transition:0.2s ease;
+/* ===== INPUT FIELDS ===== */
+
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox div[data-baseweb="select"] > div {
+    background-color: #171f35 !important;
+    color: #f8fafc !important;
+    border: 1px solid #465477 !important;
+    border-radius: 10px !important;
 }
 
-.stButton>button:hover{
-   border:1px solid#c4b5fd;
-   color:white;
-   filter:brightness(1.12);
-} 
-
-/*cards for metrics*/
-div[data-testid="stMetric"]{
-   background:#171f35;
-   padding:18px;
-   border-radius:14px;
+/* Input placeholders */
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {
+    color: #aab6cc !important;
+    opacity: 1 !important;
 }
 
-/*Dividers*/
-hr{
-  border-color:#303b58;
+/* ===== DROPDOWN MENU ===== */
+
+div[data-baseweb="popover"],
+ul[data-baseweb="menu"] {
+    background-color: #171f35 !important;
 }
 
-/*Quiz questions containers*/
-div[data-testid="stVerticalBlockBorderWrapper"]{
-   border-color:#303b58;
-   border-radius:14px;
+li[data-baseweb="option"] {
+    background-color: #171f35 !important;
+    color: #f8fafc !important;
 }
 
-/*Sidebar*/
-section[data-testid="stSidebar"]{
-  background-color:#0a0f1d;
+li[data-baseweb="option"]:hover {
+    background-color: #303b58 !important;
 }
 
-/*Hide Streamlit's default toolbar decorations*/
-#MainMenu{
- visibility:hidden;
-}
-footer{
-  visibility:hidden;
+/* ===== BUTTONS ===== */
 
+.stButton > button {
+    background: linear-gradient(
+        90deg,
+        #6d5ae6,
+        #8b5cf6
+    ) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 0.65rem 1.3rem;
+    font-weight: 600;
 }
+
+.stButton > button:hover {
+    border: 1px solid #c4b5fd !important;
+    filter: brightness(1.12);
+}
+
+/* ===== METRIC CARDS ===== */
+
+div[data-testid="stMetric"] {
+    background: #171f35;
+    padding: 18px;
+    border-radius: 14px;
+}
+
+/* ===== QUIZ CONTAINERS ===== */
+
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-color: #303b58 !important;
+    border-radius: 14px;
+}
+
+/* ===== SIDEBAR ===== */
+
+section[data-testid="stSidebar"] {
+    background-color: #0a0f1d !important;
+}
+
+/* ===== DIVIDERS ===== */
+
+hr {
+    border-color: #303b58 !important;
+}
+
+/* ===== HIDE STREAMLIT DECORATIONS ===== */
+
+#MainMenu,
+footer {
+    visibility: hidden;
+}
+
+/* ===== MOBILE RESPONSIVENESS ===== */
+
+@media screen and (max-width: 768px) {
+
+    .block-container {
+        padding-top: 1rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    h1 {
+        font-size: 1.8rem !important;
+    }
+
+    h2 {
+        font-size: 1.45rem !important;
+    }
+
+    h3 {
+        font-size: 1.2rem !important;
+    }
+
+    .stButton > button {
+        width: 100% !important;
+        min-height: 44px;
+    }
+
+    div[data-testid="stMetric"] {
+        padding: 12px;
+    }
+
+    .stTextInput input,
+    .stTextArea textarea {
+        font-size: 16px !important;
+    }
+}
+
 </style>
-""",unsafe_allow_html=True)
 
-
+""", unsafe_allow_html=True)
 # -------------------------------
 # SUPABASE AUTHENTICATION
 # -------------------------------
