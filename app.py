@@ -83,7 +83,7 @@ def generate_gemini_questions(subject, topic, difficulty):
             required_keys = {
                 "question", "options", "answer", "explanaition","topic"
             }
-
+ 
             for q in generated:
                 if not required_keys.issubset(q):
                     raise ValueError("A question is missing required fields.")
@@ -270,6 +270,8 @@ footer {
 
 /* ===== MOBILE RESPONSIVENESS ===== */
 
+/* ===== MOBILE RESPONSIVENESS ===== */
+
 @media screen and (max-width: 768px) {
 
     .block-container {
@@ -320,7 +322,7 @@ footer {
 }
 
 /* Dark backgrounds for forms and content containers */
-[data-testid="stForm"],
+[ data-testid="stForm"],
 [data-testid="stVerticalBlock"],
 [data-testid="stHorizontalBlock"] {
     background-color: transparent !important;
@@ -405,6 +407,54 @@ footer {
     color: #f8fafc !important;
 }
 
+/* ===== GLOBAL STREAMLIT ALERT FIX ===== */
+
+div[data-testid="stAlert"] {
+    background: #171f35 !important;
+    background-color: #171f35 !important;
+    border: 1px solid #465477 !important;
+    border-radius: 12px !important;
+}
+
+/* Alert inner containers */
+div[data-testid="stAlert"] > div,
+div[data-testid="stAlert"] [data-testid="stAlertContent"] {
+    background: #171f35 !important;
+    background-color: #171f35 !important;
+}
+
+/* Alert text */
+div[data-testid="stAlert"] p,
+div[data-testid="stAlert"] span,
+div[data-testid="stAlert"] li,
+div[data-testid="stAlert"] strong,
+div[data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] * {
+    color: #f1f5f9 !important;
+}
+
+/* Alert headings */
+div[data-testid="stAlert"] h1,
+div[data-testid="stAlert"] h2,
+div[data-testid="stAlert"] h3,
+div[data-testid="stAlert"] h4 {
+    color: #ffffff !important;
+}
+
+/* ===== GENERAL APP TEXT ===== */
+
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span {
+    color: #e2e8f0 !important;
+}
+
+/* ===== QUIZ AND FEEDBACK TEXT ===== */
+
+[data-testid="stVerticalBlockBorderWrapper"] p,
+[data-testid="stVerticalBlockBorderWrapper"] span {
+    color: #f1f5f9 !important;
+}
 
 </style>
 
